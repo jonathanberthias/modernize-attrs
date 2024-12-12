@@ -1,5 +1,5 @@
 [project]
-name = "translate-dataclasses"
+name = "modernize-attrs"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-translate-dataclasses = "translate_dataclasses:main"
+modernize-attrs = "modernize_attrs:main"
 
 [build-system]
 requires = ["hatchling"]
