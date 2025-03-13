@@ -27,6 +27,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         super().__init__(context)
         self.current_class_has_untyped_attr = False
         self.current_class_name = None
+        self.in_annotated_assign = False
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         self.current_class_has_untyped_attr = False
@@ -63,9 +64,45 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         
         return type_arg, remaining_args
 
+    def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
+        self.in_annotated_assign = True
+
+    def leave_AnnAssign(
+        self, original_node: cst.AnnAssign, updated_node: cst.AnnAssign
+    ) -> cst.AnnAssign:
+        self.in_annotated_assign = False
+        if self.current_class_has_untyped_attr or not m.matches(original_node.value, self.ATTR_IB_MATCHER):
+            return updated_node
+
+        remaining_args = []
+        if hasattr(original_node.value, 'args'):
+            remaining_args = [
+                arg for arg in original_node.value.args
+                if not m.matches(arg, m.Arg(keyword=m.Name(value="type")))
+            ]
+
+        if not remaining_args:
+            return cst.AnnAssign(
+                target=original_node.target,
+                annotation=original_node.annotation,
+                value=None
+            )
+
+        return updated_node.with_changes(
+            value=cst.Call(
+                func=cst.Name(value="field"),
+                args=remaining_args
+            )
+        )
+
     @m.call_if_inside(m.ClassDef())
     def visit_Call(self, node: cst.Call) -> None:
         if m.matches(node, self.ATTR_IB_MATCHER):
+            # Don't mark as untyped if we're in an annotated assignment
+            if self.in_annotated_assign:
+                return
+                
+            # Check for type argument
             has_type = any(
                 m.matches(arg, m.Arg(keyword=m.Name(value="type")))
                 for arg in node.args
@@ -97,28 +134,6 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
             return updated_node.with_changes(body=[import_define, *updated_node.body])
 
         return updated_node
-
-    @m.call_if_inside(m.ClassDef())
-    def leave_AnnAssign(
-        self, original_node: cst.AnnAssign, updated_node: cst.AnnAssign
-    ) -> cst.AnnAssign:
-        if self.current_class_has_untyped_attr or not m.matches(original_node.value, self.ATTR_IB_MATCHER):
-            return updated_node
-
-        _, remaining_args = self._extract_attr_args(original_node.value)
-        if not remaining_args:
-            return cst.AnnAssign(
-                target=original_node.target,
-                annotation=original_node.annotation,
-                value=None
-            )
-
-        return updated_node.with_changes(
-            value=cst.Call(
-                func=cst.Name(value="field"),
-                args=remaining_args
-            )
-        )
 
     @m.call_if_inside(m.ClassDef())
     def leave_Assign(

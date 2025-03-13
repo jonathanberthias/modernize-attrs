@@ -130,3 +130,24 @@ class MyClass:
 
     # Should remain unchanged
     check(before, before)
+
+
+def test_preexisting_annotations(check):
+    before = """
+import attr
+
+@attr.s
+class MyClass:
+    x: int = attr.ib()
+    y = attr.ib(type=str)
+"""
+
+    after = """
+from attrs import define, field
+
+@define
+class MyClass:
+    x: int
+    y: str
+"""
+    check(before, after)
