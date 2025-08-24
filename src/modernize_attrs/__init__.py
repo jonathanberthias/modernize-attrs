@@ -6,13 +6,17 @@ from libcst.codemod.visitors import AddImportsVisitor, RemoveImportsVisitor
 from libcst.metadata import QualifiedNameProvider, QualifiedName
 
 
-class ValidatorCollector(cst.CSTVisitor):
-    def __init__(self):
+class FieldDecoratorCollector(cst.CSTVisitor):
+    def __init__(self, decorators):
         self.fields = set()
+        self.decorators = set(decorators)
     def visit_FunctionDef(self, node: cst.FunctionDef):
         if node.decorators:
             for dec in node.decorators:
-                if isinstance(dec.decorator, cst.Attribute) and dec.decorator.attr.value == "validator":
+                if (
+                    isinstance(dec.decorator, cst.Attribute)
+                    and dec.decorator.attr.value in self.decorators
+                ):
                     if isinstance(dec.decorator.value, cst.Name):
                         self.fields.add(dec.decorator.value.value)
 
@@ -31,7 +35,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         self.current_class_name = None
         self.in_annotated_assign = False
         self.did_transform = False
-        self._validator_fields = set()
+        self._decorated_fields = set()
 
     def _is_attrs_decorator(self, node: cst.Decorator) -> bool:
         # Use LibCST metadata to resolve full name
@@ -100,7 +104,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
                 if not (arg.keyword and arg.keyword.value == "type")
             ]
         field_name = original_node.target.value if isinstance(original_node.target, cst.Name) else None
-        force_field = field_name in self._validator_fields
+        force_field = field_name in self._decorated_fields
         if not remaining_args and not force_field:
             return cst.AnnAssign(
                 target=original_node.target,
@@ -185,7 +189,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         type_arg, remaining_args = self._extract_attr_args(original_node.value)
         target = original_node.targets[0].target
         field_name = target.value if isinstance(target, cst.Name) else None
-        force_field = field_name in self._validator_fields
+        force_field = field_name in self._decorated_fields
         if type_arg:
             if (
                 len(remaining_args) == 1
@@ -229,10 +233,10 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         self.current_class_has_untyped_attr = False
         self.current_class_name = node.name.value
-        # Use ValidatorCollector visitor to collect validator fields
-        collector = ValidatorCollector()
+        # Use FieldDecoratorCollector visitor to collect relevant fields
+        collector = FieldDecoratorCollector({"validator", "default"})
         node.visit(collector)
-        self._validator_fields = collector.fields
+        self._decorated_fields = collector.fields
 
     def leave_ClassDef(
         self, original_node: cst.ClassDef, updated_node: cst.ClassDef

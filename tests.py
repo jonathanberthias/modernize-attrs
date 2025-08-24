@@ -308,3 +308,29 @@ class MyClass:
         assert value > 0    
 """
     check(before, after)
+
+
+def test_default_decorator(check):
+    before = """
+import attr
+
+@attr.s
+class MyClass:
+    a = attr.ib(type=int)
+
+    @a.default
+    def default_a(self):
+        return 42
+"""
+    after = """
+from attrs import define, field
+
+@define
+class MyClass:
+    a: int = field()
+
+    @a.default
+    def default_a(self):
+        return 42
+"""
+    check(before, after)
