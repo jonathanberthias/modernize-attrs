@@ -6,33 +6,11 @@ A codemod to modernize your attrs usage by:
 - Converting `attr.ib()` to `attrs.field()`
 - Removing empty `field()` calls when no other arguments are present
 
-## Installation
-
-```bash
-pip install modernize-attrs
-```
-
 ## Usage
 
-You can run this codemod in two ways:
-
-### 1. As a command-line tool
-
+You can run the codemod without installing by using `uvx` or `pipx run`:
 ```bash
-# Run on a single file
-modernize-attrs path/to/your/file.py
-
-# Run on a directory (will process all .py files recursively)
-modernize-attrs path/to/your/directory
-
-# Run with multiple paths
-modernize-attrs path1.py path2.py directory1/
-```
-
-### 2. Using LibCST's CLI
-
-```bash
-python -m libcst.tool codemod modernize_attrs.ModernizeAttrsCodemod path/to/your/code
+uvx git+https://github.com/jonathanberthias/modernize-attrs src_dir_or_file
 ```
 
 ## Behavior
@@ -58,6 +36,12 @@ class MyClass:
     y: str = field(default="hello")
 ```
 
+### Why?
+
+The old way of using `attr.s` and `attr.ib` is now considered outdated. The `attrs` library has introduced `@define` and `field()` to provide a more Pythonic way of defining classes with attributes, leveraging type hints for better clarity and tooling support.
+
+In particular, only Mypy can understand the `type=` argument in `attr.ib()`, making it harder to use other type checkers or get pleasant IDE support.
+
 ### Safety Features
 
 - The codemod will skip any class that contains `attr.ib()` calls without type hints and print a warning
@@ -78,13 +62,9 @@ To set up for development:
 git clone https://github.com/yourusername/modernize-attrs
 cd modernize-attrs
 
-# Create and activate a virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install development dependencies
-pip install -e ".[dev]"
+# Create a virtual environment and install dependencies
+uv sync
 
 # Run tests
-pytest
+uv run pytest
 ```
