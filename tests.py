@@ -397,3 +397,36 @@ class MyClass:
     c: dict = field(factory=dict, converter=dict)
 """
     check(before, after)
+
+
+def test_existing_field(check):
+    before = """
+import attr
+from dataclasses import dataclass, field
+
+
+@attr.s
+class MyClass:
+    a = attr.ib(type=dict, converter=dict)
+
+
+@dataclass
+class OtherClass:
+    b: dict = field()
+"""
+    after = """
+from dataclasses import dataclass, field
+import attrs
+from attrs import define
+
+
+@define
+class MyClass:
+    a: dict = attrs.field(converter=dict)
+
+
+@dataclass
+class OtherClass:
+    b: dict = field()
+"""
+    check(before, after)

@@ -130,9 +130,15 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         default_arg=None,
         other_args=None,
         force_field=False,
+        field_module=None,
     ):
         """Build the correct CST node for the field value."""
         other_args = other_args or []
+        field_func = (
+            cst.Name("field")
+            if field_module in (None, "attrs")
+            else cst.Attribute(value=cst.Name("attrs"), attr=cst.Name("field"))
+        )
         # AnnAssign (with annotation)
         if annotation is not None:
             if (
@@ -170,7 +176,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
                 return cst.AnnAssign(
                     target=target,
                     annotation=annotation,
-                    value=cst.Call(func=cst.Name("field"), args=field_args),
+                    value=cst.Call(func=field_func, args=field_args),
                 )
             return cst.AnnAssign(target=target, annotation=annotation, value=None)
         # Assign (no annotation)
@@ -202,7 +208,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
                     field_args.append(arg)
             return cst.Assign(
                 targets=[cst.AssignTarget(target=target)],
-                value=cst.Call(func=cst.Name("field"), args=field_args),
+                value=cst.Call(func=field_func, args=field_args),
             )
         return cst.Assign(targets=[cst.AssignTarget(target=target)], value=target)
 
@@ -245,6 +251,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         )
         field_name, target = self._get_target_name(original_node)
         force_field = field_name in self._decorated_fields
+        field_source = self._get_imported_field_source(self.context.module)
         return self._build_field_value(
             target=target,
             annotation=original_node.annotation,
@@ -254,6 +261,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
             default_arg=default_arg,
             other_args=other_args,
             force_field=force_field,
+            field_module=field_source,
         )
 
     @m.call_if_inside(m.ClassDef())
@@ -291,12 +299,22 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
                 return cst.Decorator(decorator=cst.Name(value="define"))
         return updated_node
 
+    def _get_imported_field_source(self, module_node):
+        import_visitor = GatherImportsVisitor(self.context)
+        module_node.visit(import_visitor)
+        # Check if 'field' is imported and from which module
+        for mod, names in import_visitor.object_mapping.items():
+            if "field" in names:
+                return mod
+        return None
+
     def leave_Module(
         self, original_node: cst.Module, updated_node: cst.Module
     ) -> cst.Module:
-        code_str = (
-            updated_node.code if hasattr(updated_node, "code") else str(updated_node)
-        )
+        code_str = updated_node.code if hasattr(updated_node, "code") else str(updated_node)
+        import_visitor = GatherImportsVisitor(self.context)
+        updated_node.visit(import_visitor)
+        field_source = self._get_imported_field_source(updated_node)
         # Remove all forms of old imports first
         RemoveImportsVisitor.remove_unused_import(self.context, "attr")
         RemoveImportsVisitor.remove_unused_import(self.context, "attrs")
@@ -309,18 +327,19 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         RemoveImportsVisitor.remove_unused_import(self.context, "attrs", "field")
         # Add imports in the expected order: Factory, define, field
         if "Factory(" in code_str:
-            # Check if Factory is already imported from attr using GatherImportsVisitor
-            import_visitor = GatherImportsVisitor(self.context)
-            updated_node.visit(import_visitor)
             factory_imported_from_attr = (
-                "attr" in import_visitor.object_mapping
-                and "Factory" in import_visitor.object_mapping["attr"]
+                "attr" in import_visitor.object_mapping and 
+                "Factory" in import_visitor.object_mapping["attr"]
             )
             if not factory_imported_from_attr:
                 AddImportsVisitor.add_needed_import(self.context, "attrs", "Factory")
         AddImportsVisitor.add_needed_import(self.context, "attrs", "define")
-        if "field(" in code_str:
+        # Only add attrs.field if not shadowed
+        if "field(" in code_str and (field_source is None or field_source == "attrs"):
             AddImportsVisitor.add_needed_import(self.context, "attrs", "field")
+        # Always add 'import attrs' if attrs.field is used
+        if "attrs.field(" in code_str:
+            AddImportsVisitor.add_needed_import(self.context, "attrs")
         return updated_node
 
     @m.call_if_inside(m.ClassDef())
@@ -333,13 +352,11 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
             and self._is_ib_call(original_node.value)
         ):
             return original_node
-
         type_arg, remaining_args = self._extract_attr_args(original_node.value)
         field_name, target = self._get_target_name(original_node)
         force_field = field_name in self._decorated_fields
-        factory_func, factory_value, simple_default, default_arg, other_args = (
-            self._parse_field_args(remaining_args)
-        )
+        factory_func, factory_value, simple_default, default_arg, other_args = self._parse_field_args(remaining_args)
+        field_source = self._get_imported_field_source(self.context.module)
         if type_arg:
             return self._build_field_value(
                 target=target,
@@ -350,6 +367,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
                 default_arg=default_arg,
                 other_args=other_args,
                 force_field=force_field,
+                field_module=field_source,
             )
         else:
             return self._build_field_value(
@@ -361,6 +379,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
                 default_arg=default_arg,
                 other_args=other_args,
                 force_field=force_field,
+                field_module=field_source,
             )
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
