@@ -246,3 +246,39 @@ class MyClass:
     a: int
 """
     check(before, after)
+
+
+def test_remove_auto_attribs(check):
+    before = """
+import attr
+
+@attr.s(auto_attribs=True)
+class MyClass:
+    a: int
+"""
+    after = """
+from attrs import define
+
+@define
+class MyClass:
+    a: int
+"""
+    check(before, after)
+
+
+def test_preserve_auto_attribs_false(check):
+    before = """
+import attr
+
+@attr.s(auto_attribs=False)
+class MyClass:
+    a: int
+"""
+    after = """
+from attrs import define
+
+@define(auto_attribs=False)
+class MyClass:
+    a: int
+"""
+    check(before, after)

@@ -120,14 +120,24 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
             return original_node
         if self._is_attrs_decorator(original_node):
             self.did_transform = True
-            # Preserve arguments to the decorator
+            # Preserve arguments to the decorator, but remove auto_attribs only if True
             if isinstance(original_node.decorator, cst.Call):
-                return cst.Decorator(
-                    decorator=cst.Call(
-                        func=cst.Name(value="define"),
-                        args=original_node.decorator.args
+                filtered_args = []
+                for arg in original_node.decorator.args:
+                    if arg.keyword and arg.keyword.value == "auto_attribs":
+                        # Only remove if value is True
+                        if isinstance(arg.value, cst.Name) and arg.value.value == "True":
+                            continue
+                    filtered_args.append(arg)
+                if filtered_args:
+                    return cst.Decorator(
+                        decorator=cst.Call(
+                            func=cst.Name(value="define"),
+                            args=filtered_args
+                        )
                     )
-                )
+                else:
+                    return cst.Decorator(decorator=cst.Name(value="define"))
             else:
                 return cst.Decorator(decorator=cst.Name(value="define"))
         return updated_node
