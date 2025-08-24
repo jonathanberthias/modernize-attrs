@@ -215,7 +215,7 @@ from attrs import define, field
 class MyClass1:
     x: int = field(converter=int)
 
-    
+
 @define
 class MyClass2:
     y: str = "hello"
@@ -247,7 +247,7 @@ from attrs import define, field
 class MyClass1:
     x: int = field(converter=int)
 
-    
+
 @attr.s
 class MyClass2:
     y = attr.ib()  # no type hint
@@ -367,5 +367,33 @@ class MyClass:
     @a.default
     def default_a(self):
         return 42
+"""
+    check(before, after)
+
+
+def test_default_factory(check):
+    before = """
+import attr
+from attr import Factory
+
+
+@attr.s
+class MyClass:
+    a = attr.ib(type=list[str], default=attr.Factory(list))
+    b = attr.ib(type=dict, default=Factory(dict))
+    c = attr.ib(type=dict, default=attr.Factory(dict), converter=dict)
+"""
+    # Here we don't change the Factory import to attrs.Factory because
+    # it's hard to remove the attr.Factory. We could do it, but it's more complex.
+    after = """
+from attr import Factory
+from attrs import define, field
+
+
+@define
+class MyClass:
+    a: list[str] = Factory(list)
+    b: dict = Factory(dict)
+    c: dict = field(factory=dict, converter=dict)
 """
     check(before, after)
