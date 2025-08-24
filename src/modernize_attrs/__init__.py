@@ -128,16 +128,17 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
     def leave_Module(
         self, original_node: cst.Module, updated_node: cst.Module
     ) -> cst.Module:
-        # Only update imports if a transformation occurred
-        if self.did_transform:
-            AddImportsVisitor.add_needed_import(self.context, "attrs", "define")
-            AddImportsVisitor.add_needed_import(self.context, "attrs", "field")
-            # Remove all forms of old imports
-            RemoveImportsVisitor.remove_unused_import(self.context, "attr")
-            RemoveImportsVisitor.remove_unused_import(self.context, "attrs")
-            RemoveImportsVisitor.remove_unused_import(self.context, "attr", "attrs")
-            RemoveImportsVisitor.remove_unused_import(self.context, "attr", "attrib")
-            RemoveImportsVisitor.remove_unused_import(self.context, "attr", "ib")
+        AddImportsVisitor.add_needed_import(self.context, "attrs", "define")
+        AddImportsVisitor.add_needed_import(self.context, "attrs", "field")
+        RemoveImportsVisitor.remove_unused_import(self.context, "attrs", "define")
+        RemoveImportsVisitor.remove_unused_import(self.context, "attrs", "field")
+
+        # Remove all forms of old imports
+        RemoveImportsVisitor.remove_unused_import(self.context, "attr")
+        RemoveImportsVisitor.remove_unused_import(self.context, "attrs")
+        RemoveImportsVisitor.remove_unused_import(self.context, "attr", "attrs")
+        RemoveImportsVisitor.remove_unused_import(self.context, "attr", "attrib")
+        RemoveImportsVisitor.remove_unused_import(self.context, "attr", "ib")
         return updated_node
 
     @m.call_if_inside(m.ClassDef())
@@ -155,7 +156,18 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         type_arg, remaining_args = self._extract_attr_args(original_node.value)
         target = original_node.targets[0].target
 
+        # Check for only default argument
         if type_arg:
+            if (
+                len(remaining_args) == 1
+                and remaining_args[0].keyword
+                and remaining_args[0].keyword.value == "default"
+            ):
+                return cst.AnnAssign(
+                    target=target,
+                    annotation=cst.Annotation(annotation=type_arg),
+                    value=remaining_args[0].value,
+                )
             if not remaining_args:
                 return cst.AnnAssign(
                     target=target,
@@ -167,12 +179,25 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
                 annotation=cst.Annotation(annotation=type_arg),
                 value=cst.Call(func=cst.Name(value="field"), args=remaining_args),
             )
+        if (
+            len(remaining_args) == 1
+            and remaining_args[0].keyword
+            and remaining_args[0].keyword.value == "default"
+        ):
+            return cst.Assign(
+                targets=[cst.AssignTarget(target=target)],
+                value=remaining_args[0].value,
+            )
         if remaining_args:
             return cst.Assign(
                 targets=[cst.AssignTarget(target=target)],
                 value=cst.Call(func=cst.Name(value="field"), args=remaining_args),
             )
         return cst.Assign(targets=[cst.AssignTarget(target=target)], value=target)
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        self.current_class_has_untyped_attr = False
+        self.current_class_name = node.name.value
 
     def leave_ClassDef(
         self, original_node: cst.ClassDef, updated_node: cst.ClassDef

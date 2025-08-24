@@ -26,12 +26,12 @@ class MyClass:
 """
 
     after = """
-from attrs import define, field
+from attrs import define
 
 @define
 class MyClass:
     x: int
-    y: str = field(default="hello")
+    y: str = "hello"
 """
     check(before, after)
 
@@ -47,12 +47,12 @@ class MyClass:
 """
 
     after = """
-from attrs import define, field
+from attrs import define
 
 @define
 class MyClass:
     x: int
-    y: str = field(default="hello")
+    y: str = "hello"
 """
     check(before, after)
 
@@ -70,12 +70,12 @@ class MyClass:
 
     after = """
 from typing import List, Optional
-from attrs import define, field
+from attrs import define
 
 @define
 class MyClass:
     x: List[int]
-    y: Optional[str] = field(default=None)
+    y: Optional[str] = None
 """
     check(before, after)
 
@@ -90,7 +90,7 @@ class MyClass:
 """
 
     after = """
-from attrs import define, field
+from attrs import define
 
 @define
 class MyClass:
@@ -144,7 +144,7 @@ class MyClass:
 """
 
     after = """
-from attrs import define, field
+from attrs import define
 
 @define
 class MyClass:
@@ -165,11 +165,11 @@ class MyClass:
 """
 
     after = """
-from attrs import define, field
+from attrs import define
 
 @define
 class MyClass:
     x: int
-    y: str = field(default="hello")
+    y: str = "hello"
 """
     check(before, after)
