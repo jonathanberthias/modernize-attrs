@@ -2,7 +2,11 @@ from typing import Union
 import libcst as cst
 from libcst import matchers as m
 from libcst.codemod import CodemodContext, VisitorBasedCodemodCommand
-from libcst.codemod.visitors import AddImportsVisitor, RemoveImportsVisitor, GatherImportsVisitor
+from libcst.codemod.visitors import (
+    AddImportsVisitor,
+    RemoveImportsVisitor,
+    GatherImportsVisitor,
+)
 from libcst.metadata import QualifiedNameProvider, QualifiedName
 
 
@@ -10,6 +14,7 @@ class FieldDecoratorCollector(cst.CSTVisitor):
     def __init__(self, decorators):
         self.fields = set()
         self.decorators = set(decorators)
+
     def visit_FunctionDef(self, node: cst.FunctionDef):
         if node.decorators:
             for dec in node.decorators:
@@ -94,11 +99,14 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
             if arg.keyword and arg.keyword.value == "default":
                 default_arg = arg.value
                 # Detect Factory
-                if (
-                    isinstance(arg.value, cst.Call)
-                    and (
-                        (isinstance(arg.value.func, cst.Attribute) and arg.value.func.attr.value == "Factory")
-                        or (isinstance(arg.value.func, cst.Name) and arg.value.func.value == "Factory")
+                if isinstance(arg.value, cst.Call) and (
+                    (
+                        isinstance(arg.value.func, cst.Attribute)
+                        and arg.value.func.attr.value == "Factory"
+                    )
+                    or (
+                        isinstance(arg.value.func, cst.Name)
+                        and arg.value.func.value == "Factory"
                     )
                 ):
                     factory_func = arg.value.func
@@ -111,45 +119,91 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
             other_args.append(arg)
         return factory_func, factory_value, simple_default, default_arg, other_args
 
-    def _build_field_value(self, *, target, annotation=None, factory_func=None, factory_value=None, simple_default=None, default_arg=None, other_args=None, force_field=False):
+    def _build_field_value(
+        self,
+        *,
+        target,
+        annotation=None,
+        factory_func=None,
+        factory_value=None,
+        simple_default=None,
+        default_arg=None,
+        other_args=None,
+        force_field=False,
+    ):
         """Build the correct CST node for the field value."""
         other_args = other_args or []
         # AnnAssign (with annotation)
         if annotation is not None:
-            if simple_default and not other_args and not factory_func and not force_field:
-                return cst.AnnAssign(target=target, annotation=annotation, value=simple_default)
+            if (
+                simple_default
+                and not other_args
+                and not factory_func
+                and not force_field
+            ):
+                return cst.AnnAssign(
+                    target=target, annotation=annotation, value=simple_default
+                )
             if factory_func and factory_value and not other_args and not force_field:
-                return cst.AnnAssign(target=target, annotation=annotation, value=cst.Call(func=cst.Name("Factory"), args=[cst.Arg(value=factory_value)]))
+                return cst.AnnAssign(
+                    target=target,
+                    annotation=annotation,
+                    value=cst.Call(
+                        func=cst.Name("Factory"), args=[cst.Arg(value=factory_value)]
+                    ),
+                )
             if factory_func and factory_value or other_args or force_field:
                 field_args = []
                 if factory_func and factory_value:
-                    field_args.append(cst.Arg(keyword=cst.Name("factory"), value=factory_value))
+                    field_args.append(
+                        cst.Arg(keyword=cst.Name("factory"), value=factory_value)
+                    )
                 if default_arg and not factory_func:
-                    field_args.append(cst.Arg(keyword=cst.Name("default"), value=default_arg))
+                    field_args.append(
+                        cst.Arg(keyword=cst.Name("default"), value=default_arg)
+                    )
                 for arg in other_args:
                     if arg.keyword:
                         field_args.append(cst.Arg(keyword=arg.keyword, value=arg.value))
                     else:
                         field_args.append(arg)
-                return cst.AnnAssign(target=target, annotation=annotation, value=cst.Call(func=cst.Name("field"), args=field_args))
+                return cst.AnnAssign(
+                    target=target,
+                    annotation=annotation,
+                    value=cst.Call(func=cst.Name("field"), args=field_args),
+                )
             return cst.AnnAssign(target=target, annotation=annotation, value=None)
         # Assign (no annotation)
         if simple_default and not other_args and not factory_func and not force_field:
-            return cst.Assign(targets=[cst.AssignTarget(target=target)], value=simple_default)
+            return cst.Assign(
+                targets=[cst.AssignTarget(target=target)], value=simple_default
+            )
         if factory_func and factory_value and not other_args and not force_field:
-            return cst.Assign(targets=[cst.AssignTarget(target=target)], value=cst.Call(func=cst.Name("Factory"), args=[cst.Arg(value=factory_value)]))
+            return cst.Assign(
+                targets=[cst.AssignTarget(target=target)],
+                value=cst.Call(
+                    func=cst.Name("Factory"), args=[cst.Arg(value=factory_value)]
+                ),
+            )
         if factory_func and factory_value or other_args or force_field:
             field_args = []
             if factory_func and factory_value:
-                field_args.append(cst.Arg(keyword=cst.Name("factory"), value=factory_value))
+                field_args.append(
+                    cst.Arg(keyword=cst.Name("factory"), value=factory_value)
+                )
             if default_arg and not factory_func:
-                field_args.append(cst.Arg(keyword=cst.Name("default"), value=default_arg))
+                field_args.append(
+                    cst.Arg(keyword=cst.Name("default"), value=default_arg)
+                )
             for arg in other_args:
                 if arg.keyword:
                     field_args.append(cst.Arg(keyword=arg.keyword, value=arg.value))
                 else:
                     field_args.append(arg)
-            return cst.Assign(targets=[cst.AssignTarget(target=target)], value=cst.Call(func=cst.Name("field"), args=field_args))
+            return cst.Assign(
+                targets=[cst.AssignTarget(target=target)],
+                value=cst.Call(func=cst.Name("field"), args=field_args),
+            )
         return cst.Assign(targets=[cst.AssignTarget(target=target)], value=target)
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
@@ -164,9 +218,13 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
 
     def _filter_auto_attribs(self, args):
         return [
-            arg for arg in args
+            arg
+            for arg in args
             if not (
-                arg.keyword and arg.keyword.value == "auto_attribs" and isinstance(arg.value, cst.Name) and arg.value.value == "True"
+                arg.keyword
+                and arg.keyword.value == "auto_attribs"
+                and isinstance(arg.value, cst.Name)
+                and arg.value.value == "True"
             )
         ]
 
@@ -182,7 +240,9 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
             return original_node
 
         args = getattr(original_node.value, "args", [])
-        factory_func, factory_value, simple_default, default_arg, other_args = self._parse_field_args(args)
+        factory_func, factory_value, simple_default, default_arg, other_args = (
+            self._parse_field_args(args)
+        )
         field_name, target = self._get_target_name(original_node)
         force_field = field_name in self._decorated_fields
         return self._build_field_value(
@@ -222,8 +282,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
                 if filtered_args:
                     return cst.Decorator(
                         decorator=cst.Call(
-                            func=cst.Name(value="define"),
-                            args=filtered_args
+                            func=cst.Name(value="define"), args=filtered_args
                         )
                     )
                 else:
@@ -235,7 +294,9 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
     def leave_Module(
         self, original_node: cst.Module, updated_node: cst.Module
     ) -> cst.Module:
-        code_str = updated_node.code if hasattr(updated_node, "code") else str(updated_node)
+        code_str = (
+            updated_node.code if hasattr(updated_node, "code") else str(updated_node)
+        )
         # Remove all forms of old imports first
         RemoveImportsVisitor.remove_unused_import(self.context, "attr")
         RemoveImportsVisitor.remove_unused_import(self.context, "attrs")
@@ -252,8 +313,8 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
             import_visitor = GatherImportsVisitor(self.context)
             updated_node.visit(import_visitor)
             factory_imported_from_attr = (
-                "attr" in import_visitor.object_mapping and 
-                "Factory" in import_visitor.object_mapping["attr"]
+                "attr" in import_visitor.object_mapping
+                and "Factory" in import_visitor.object_mapping["attr"]
             )
             if not factory_imported_from_attr:
                 AddImportsVisitor.add_needed_import(self.context, "attrs", "Factory")
@@ -276,7 +337,9 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         type_arg, remaining_args = self._extract_attr_args(original_node.value)
         field_name, target = self._get_target_name(original_node)
         force_field = field_name in self._decorated_fields
-        factory_func, factory_value, simple_default, default_arg, other_args = self._parse_field_args(remaining_args)
+        factory_func, factory_value, simple_default, default_arg, other_args = (
+            self._parse_field_args(remaining_args)
+        )
         if type_arg:
             return self._build_field_value(
                 target=target,
