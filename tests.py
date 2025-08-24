@@ -2,6 +2,7 @@ import libcst as cst
 import pytest
 from modernize_attrs import ModernizeAttrsCodemod
 from libcst.codemod import CodemodContext
+from black import format_str, FileMode
 
 
 @pytest.fixture
@@ -10,7 +11,8 @@ def check():
         context = CodemodContext(filename="example.py")
         command = ModernizeAttrsCodemod(context)
         result = command.transform_module(cst.parse_module(before))
-        assert result.code.rstrip() == after.rstrip()
+        formatted = format_str(result.code, mode=FileMode())
+        assert formatted.strip() == after.strip()
 
     return inner
 
@@ -18,6 +20,7 @@ def check():
 def test_move_type_to_annotation(check):
     before = """
 import attr
+
 
 @attr.s
 class MyClass:
@@ -27,6 +30,7 @@ class MyClass:
 
     after = """
 from attrs import define
+
 
 @define
 class MyClass:
@@ -40,6 +44,7 @@ def test_attrs_import(check):
     before = """
 import attrs
 
+
 @attrs.s
 class MyClass:
     x = attrs.ib(type=int)
@@ -48,6 +53,7 @@ class MyClass:
 
     after = """
 from attrs import define
+
 
 @define
 class MyClass:
@@ -62,6 +68,7 @@ def test_multiple_types(check):
 import attr
 from typing import List, Optional
 
+
 @attr.s
 class MyClass:
     x = attr.ib(type=List[int])
@@ -71,6 +78,7 @@ class MyClass:
     after = """
 from typing import List, Optional
 from attrs import define
+
 
 @define
 class MyClass:
@@ -84,6 +92,7 @@ def test_existing_annotation_with_type(check):
     before = """
 import attr
 
+
 @attr.s
 class MyClass:
     x: int = attr.ib(type=int)  # redundant type
@@ -91,6 +100,7 @@ class MyClass:
 
     after = """
 from attrs import define
+
 
 @define
 class MyClass:
@@ -103,6 +113,7 @@ def test_preserve_other_arguments(check):
     before = """
 import attr
 
+
 @attr.s
 class MyClass:
     x = attr.ib(type=int, default=0, validator=attr.validators.instance_of(int))
@@ -111,6 +122,7 @@ class MyClass:
     after = """
 import attr
 from attrs import define, field
+
 
 @define
 class MyClass:
@@ -122,6 +134,7 @@ class MyClass:
 def test_skip_untyped_attrs(check):
     before = """
 import attr
+
 
 @attr.s
 class MyClass:
@@ -137,6 +150,7 @@ def test_preexisting_annotations(check):
     before = """
 import attr
 
+
 @attr.s
 class MyClass:
     x: int = attr.ib()
@@ -145,6 +159,7 @@ class MyClass:
 
     after = """
 from attrs import define
+
 
 @define
 class MyClass:
@@ -158,6 +173,7 @@ def test_business_import_attrs_decorator(check):
     before = """
 from attr import attrs, attrib
 
+
 @attrs
 class MyClass:
     x = attrib(type=int)
@@ -166,6 +182,7 @@ class MyClass:
 
     after = """
 from attrs import define
+
 
 @define
 class MyClass:
@@ -179,9 +196,11 @@ def test_multiple_classes(check):
     before = """
 import attr
 
+
 @attr.s
 class MyClass1:
     x = attr.ib(type=int, converter=int)
+
 
 @attr.s
 class MyClass2:
@@ -191,10 +210,12 @@ class MyClass2:
     after = """
 from attrs import define, field
 
+
 @define
 class MyClass1:
     x: int = field(converter=int)
 
+    
 @define
 class MyClass2:
     y: str = "hello"
@@ -206,10 +227,12 @@ def test_multiple_classes_one_untouched(check):
     before = """
 import attr
 
+
 @attr.s
 class MyClass1:
     x = attr.ib(type=int, converter=int)
 
+    
 @attr.s
 class MyClass2:
     y = attr.ib()  # no type hint
@@ -219,10 +242,12 @@ class MyClass2:
 import attr
 from attrs import define, field
 
+
 @define
 class MyClass1:
     x: int = field(converter=int)
 
+    
 @attr.s
 class MyClass2:
     y = attr.ib()  # no type hint
@@ -234,12 +259,14 @@ def test_decorator_attributes(check):
     before = """
 import attr
 
+
 @attr.s(frozen=True, eq=False)
 class MyClass:
     a = attr.ib(type=int)
 """
     after = """
 from attrs import define
+
 
 @define(frozen=True, eq=False)
 class MyClass:
@@ -252,12 +279,14 @@ def test_remove_auto_attribs(check):
     before = """
 import attr
 
+
 @attr.s(auto_attribs=True)
 class MyClass:
     a: int
 """
     after = """
 from attrs import define
+
 
 @define
 class MyClass:
@@ -270,12 +299,14 @@ def test_preserve_auto_attribs_false(check):
     before = """
 import attr
 
+
 @attr.s(auto_attribs=False)
 class MyClass:
     a: int
 """
     after = """
 from attrs import define
+
 
 @define(auto_attribs=False)
 class MyClass:
@@ -288,6 +319,7 @@ def test_validator_decorator(check):
     before = """
 import attr
 
+
 @attr.s
 class MyClass:
     a = attr.ib(type=int)
@@ -298,6 +330,7 @@ class MyClass:
 """
     after = """
 from attrs import define, field
+
 
 @define
 class MyClass:
@@ -314,6 +347,7 @@ def test_default_decorator(check):
     before = """
 import attr
 
+
 @attr.s
 class MyClass:
     a = attr.ib(type=int)
@@ -324,6 +358,7 @@ class MyClass:
 """
     after = """
 from attrs import define, field
+
 
 @define
 class MyClass:
