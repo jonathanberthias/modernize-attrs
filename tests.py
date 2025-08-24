@@ -173,3 +173,58 @@ class MyClass:
     y: str = "hello"
 """
     check(before, after)
+
+
+def test_multiple_classes(check):
+    before = """
+import attr
+
+@attr.s
+class MyClass1:
+    x = attr.ib(type=int, converter=int)
+
+@attr.s
+class MyClass2:
+    y = attr.ib(type=str, default="hello")
+"""
+
+    after = """
+from attrs import define, field
+
+@define
+class MyClass1:
+    x: int = field(converter=int)
+
+@define
+class MyClass2:
+    y: str = "hello"
+"""
+    check(before, after)
+
+
+def test_multiple_classes_one_untouched(check):
+    before = """
+import attr
+
+@attr.s
+class MyClass1:
+    x = attr.ib(type=int, converter=int)
+
+@attr.s
+class MyClass2:
+    y = attr.ib()  # no type hint
+"""
+
+    after = """
+import attr
+from attrs import define, field
+
+@define
+class MyClass1:
+    x: int = field(converter=int)
+
+@attr.s
+class MyClass2:
+    y = attr.ib()  # no type hint
+"""
+    check(before, after)
