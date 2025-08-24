@@ -228,3 +228,21 @@ class MyClass2:
     y = attr.ib()  # no type hint
 """
     check(before, after)
+
+
+def test_decorator_attributes(check):
+    before = """
+import attr
+
+@attr.s(frozen=True, eq=False)
+class MyClass:
+    a = attr.ib(type=int)
+"""
+    after = """
+from attrs import define
+
+@define(frozen=True, eq=False)
+class MyClass:
+    a: int
+"""
+    check(before, after)

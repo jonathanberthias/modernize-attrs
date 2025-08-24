@@ -117,12 +117,19 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         self, original_node: cst.Decorator, updated_node: cst.Decorator
     ) -> Union[cst.Decorator, cst.RemovalSentinel]:
         if self.current_class_has_untyped_attr:
-            return updated_node
-
+            return original_node
         if self._is_attrs_decorator(original_node):
             self.did_transform = True
-            return cst.Decorator(decorator=cst.Name(value="define"))
-
+            # Preserve arguments to the decorator
+            if isinstance(original_node.decorator, cst.Call):
+                return cst.Decorator(
+                    decorator=cst.Call(
+                        func=cst.Name(value="define"),
+                        args=original_node.decorator.args
+                    )
+                )
+            else:
+                return cst.Decorator(decorator=cst.Name(value="define"))
         return updated_node
 
     def leave_Module(
