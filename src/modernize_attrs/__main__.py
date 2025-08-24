@@ -10,10 +10,10 @@ from modernize_attrs import ModernizeAttrsCodemod
 def main(paths: Sequence[str] | None = None) -> int:
     """
     Main entry point for the modernize-attrs command-line tool.
-    
+
     Args:
         paths: Optional sequence of paths to process. If None, uses sys.argv[1:]
-    
+
     Returns:
         0 on success, non-zero on error
     """
@@ -37,10 +37,10 @@ def main(paths: Sequence[str] | None = None) -> int:
     # Collect all Python files from the provided paths
     files_to_process = []
     for path in path_objects:
-        if path.is_file() and path.suffix == '.py':
+        if path.is_file() and path.suffix == ".py":
             files_to_process.append(str(path))
         elif path.is_dir():
-            files_to_process.extend(str(p) for p in path.rglob('*.py') if p.is_file())
+            files_to_process.extend(str(p) for p in path.rglob("*.py") if p.is_file())
 
     if not files_to_process:
         print("No Python files found to process")
@@ -57,4 +57,4 @@ def main(paths: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    sys.exit(main())

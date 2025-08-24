@@ -65,3 +65,7 @@ class MyClass:
 
 When updating the codemod, ensure these instructions remain accurate.
 Also keep the README.md in sync with any changes to usage or behavior.
+
+## Features
+
+- Use features from libCST as much as possible. Avoid complex manual code manipulations.

@@ -56,6 +56,7 @@ class MyClass:
 """
     check(before, after)
 
+
 def test_multiple_types(check):
     before = """
 import attr
@@ -119,14 +120,14 @@ class MyClass:
 
 
 def test_skip_untyped_attrs(check):
-    before = '''
+    before = """
 import attr
 
 @attr.s
 class MyClass:
     x = attr.ib()  # no type hint
     y = attr.ib(type=str, default="hello")
-'''
+"""
 
     # Should remain unchanged
     check(before, before)
@@ -149,5 +150,26 @@ from attrs import define, field
 class MyClass:
     x: int
     y: str
+"""
+    check(before, after)
+
+
+def test_business_import_attrs_decorator(check):
+    before = """
+from attr import attrs, attrib
+
+@attrs
+class MyClass:
+    x = attrib(type=int)
+    y = attrib(type=str, default="hello")
+"""
+
+    after = """
+from attrs import define, field
+
+@define
+class MyClass:
+    x: int
+    y: str = field(default="hello")
 """
     check(before, after)
