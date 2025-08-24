@@ -6,6 +6,17 @@ from libcst.codemod.visitors import AddImportsVisitor, RemoveImportsVisitor
 from libcst.metadata import QualifiedNameProvider, QualifiedName
 
 
+class ValidatorCollector(cst.CSTVisitor):
+    def __init__(self):
+        self.fields = set()
+    def visit_FunctionDef(self, node: cst.FunctionDef):
+        if node.decorators:
+            for dec in node.decorators:
+                if isinstance(dec.decorator, cst.Attribute) and dec.decorator.attr.value == "validator":
+                    if isinstance(dec.decorator.value, cst.Name):
+                        self.fields.add(dec.decorator.value.value)
+
+
 class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
     """
     Codemod that converts @attrs.s decorators to @define from attrs package.
@@ -20,6 +31,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         self.current_class_name = None
         self.in_annotated_assign = False
         self.did_transform = False
+        self._validator_fields = set()
 
     def _is_attrs_decorator(self, node: cst.Decorator) -> bool:
         # Use LibCST metadata to resolve full name
@@ -77,7 +89,7 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
             and isinstance(original_node.value, cst.Call)
             and self._is_ib_call(original_node.value)
         ):
-            return updated_node
+            return original_node
 
         self.did_transform = True
         remaining_args = []
@@ -87,14 +99,14 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
                 for arg in original_node.value.args
                 if not (arg.keyword and arg.keyword.value == "type")
             ]
-
-        if not remaining_args:
+        field_name = original_node.target.value if isinstance(original_node.target, cst.Name) else None
+        force_field = field_name in self._validator_fields
+        if not remaining_args and not force_field:
             return cst.AnnAssign(
                 target=original_node.target,
                 annotation=original_node.annotation,
                 value=None,
             )
-
         return updated_node.with_changes(
             value=cst.Call(func=cst.Name(value="field"), args=remaining_args)
         )
@@ -167,25 +179,26 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
             and isinstance(original_node.value, cst.Call)
             and self._is_ib_call(original_node.value)
         ):
-            return updated_node
+            return original_node
 
         self.did_transform = True
         type_arg, remaining_args = self._extract_attr_args(original_node.value)
         target = original_node.targets[0].target
-
-        # Check for only default argument
+        field_name = target.value if isinstance(target, cst.Name) else None
+        force_field = field_name in self._validator_fields
         if type_arg:
             if (
                 len(remaining_args) == 1
                 and remaining_args[0].keyword
                 and remaining_args[0].keyword.value == "default"
+                and not force_field
             ):
                 return cst.AnnAssign(
                     target=target,
                     annotation=cst.Annotation(annotation=type_arg),
                     value=remaining_args[0].value,
                 )
-            if not remaining_args:
+            if not remaining_args and not force_field:
                 return cst.AnnAssign(
                     target=target,
                     annotation=cst.Annotation(annotation=type_arg),
@@ -200,12 +213,13 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
             len(remaining_args) == 1
             and remaining_args[0].keyword
             and remaining_args[0].keyword.value == "default"
+            and not force_field
         ):
             return cst.Assign(
                 targets=[cst.AssignTarget(target=target)],
                 value=remaining_args[0].value,
             )
-        if remaining_args:
+        if remaining_args or force_field:
             return cst.Assign(
                 targets=[cst.AssignTarget(target=target)],
                 value=cst.Call(func=cst.Name(value="field"), args=remaining_args),
@@ -215,6 +229,10 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         self.current_class_has_untyped_attr = False
         self.current_class_name = node.name.value
+        # Use ValidatorCollector visitor to collect validator fields
+        collector = ValidatorCollector()
+        node.visit(collector)
+        self._validator_fields = collector.fields
 
     def leave_ClassDef(
         self, original_node: cst.ClassDef, updated_node: cst.ClassDef

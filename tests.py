@@ -282,3 +282,29 @@ class MyClass:
     a: int
 """
     check(before, after)
+
+
+def test_validator_decorator(check):
+    before = """
+import attr
+
+@attr.s
+class MyClass:
+    a = attr.ib(type=int)
+
+    @a.validator
+    def validate_a(self, attribute, value):
+        assert value > 0
+"""
+    after = """
+from attrs import define, field
+
+@define
+class MyClass:
+    a: int = field()
+
+    @a.validator
+    def validate_a(self, attribute, value):
+        assert value > 0    
+"""
+    check(before, after)
