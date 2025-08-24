@@ -155,6 +155,21 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
     def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
         self.in_annotated_assign = True
 
+    def _get_target_name(self, node):
+        if isinstance(node, cst.AnnAssign):
+            target = node.target
+        else:  # Assign
+            target = node.targets[0].target
+        return (target.value if isinstance(target, cst.Name) else None), target
+
+    def _filter_auto_attribs(self, args):
+        return [
+            arg for arg in args
+            if not (
+                arg.keyword and arg.keyword.value == "auto_attribs" and isinstance(arg.value, cst.Name) and arg.value.value == "True"
+            )
+        ]
+
     def leave_AnnAssign(
         self, original_node: cst.AnnAssign, updated_node: cst.AnnAssign
     ) -> cst.AnnAssign:
@@ -166,13 +181,12 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         ):
             return original_node
 
-        self.did_transform = True
         args = getattr(original_node.value, "args", [])
         factory_func, factory_value, simple_default, default_arg, other_args = self._parse_field_args(args)
-        field_name = original_node.target.value if isinstance(original_node.target, cst.Name) else None
+        field_name, target = self._get_target_name(original_node)
         force_field = field_name in self._decorated_fields
         return self._build_field_value(
-            target=original_node.target,
+            target=target,
             annotation=original_node.annotation,
             factory_func=factory_func,
             factory_value=factory_value,
@@ -202,16 +216,9 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         if self.current_class_has_untyped_attr:
             return original_node
         if self._is_attrs_decorator(original_node):
-            self.did_transform = True
             # Preserve arguments to the decorator, but remove auto_attribs only if True
             if isinstance(original_node.decorator, cst.Call):
-                filtered_args = []
-                for arg in original_node.decorator.args:
-                    if arg.keyword and arg.keyword.value == "auto_attribs":
-                        # Only remove if value is True
-                        if isinstance(arg.value, cst.Name) and arg.value.value == "True":
-                            continue
-                    filtered_args.append(arg)
+                filtered_args = self._filter_auto_attribs(original_node.decorator.args)
                 if filtered_args:
                     return cst.Decorator(
                         decorator=cst.Call(
@@ -266,10 +273,8 @@ class ModernizeAttrsCodemod(VisitorBasedCodemodCommand):
         ):
             return original_node
 
-        self.did_transform = True
         type_arg, remaining_args = self._extract_attr_args(original_node.value)
-        target = original_node.targets[0].target
-        field_name = target.value if isinstance(target, cst.Name) else None
+        field_name, target = self._get_target_name(original_node)
         force_field = field_name in self._decorated_fields
         factory_func, factory_value, simple_default, default_arg, other_args = self._parse_field_args(remaining_args)
         if type_arg:
