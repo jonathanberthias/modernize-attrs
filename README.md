@@ -22,7 +22,7 @@ import attr
 
 @attr.s
 class MyClass:
-    x = attr.ib(type=int)
+    x = attr.ib(type=int, converter=int)
     y = attr.ib(type=str, default="hello")
 ```
 
@@ -32,13 +32,14 @@ from attrs import define, field
 
 @define
 class MyClass:
-    x: int
-    y: str = field(default="hello")
+    x: int = field(converter=int)
+    y: str = "hello"
 ```
 
 ### Why?
 
-The old way of using `attr.s` and `attr.ib` is now considered outdated. The `attrs` library has introduced `@define` and `field()` to provide a more Pythonic way of defining classes with attributes, leveraging type hints for better clarity and tooling support.
+The old way of using `attr.s` and `attr.ib` is now considered [outdated](https://www.attrs.org/en/stable/names.html).
+The `attrs` library has introduced `@define` and `field()` to provide a more Pythonic way of defining classes with attributes, leveraging type hints for better clarity and tooling support.
 
 In particular, only Mypy can understand the `type=` argument in `attr.ib()`, making it harder to use other type checkers or get pleasant IDE support.
 
@@ -59,7 +60,7 @@ To set up for development:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/modernize-attrs
+git clone https://github.com/jonathanberthias/modernize-attrs
 cd modernize-attrs
 
 # Create a virtual environment and install dependencies
