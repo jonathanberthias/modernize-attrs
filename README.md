@@ -15,8 +15,7 @@ uvx git+https://github.com/jonathanberthias/modernize-attrs src_dir_or_file
 
 ## Behavior
 
-The codemod will:
-- Convert code like this:
+The codemod will convert code like this:
 ```python
 import attr
 
